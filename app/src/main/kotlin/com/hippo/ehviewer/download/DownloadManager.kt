@@ -44,6 +44,7 @@ import com.ehviewer.core.util.logcat
 import com.ehviewer.core.util.mapNotNull
 import com.hippo.ehviewer.EhDB
 import com.hippo.ehviewer.Settings
+import com.hippo.ehviewer.client.EhEngine
 import com.hippo.ehviewer.client.exception.FatalException
 import com.hippo.ehviewer.spider.COMIC_INFO_FILE
 import com.hippo.ehviewer.spider.SpeedTracker
@@ -55,6 +56,7 @@ import com.hippo.ehviewer.spider.readComicInfo
 import com.hippo.ehviewer.spider.readCompatFromPath
 import com.hippo.ehviewer.spider.toSimpleTags
 import com.hippo.ehviewer.util.AppConfig
+import com.hippo.ehviewer.util.FavouriteStatusRouter
 import com.hippo.ehviewer.util.insertWith
 import com.hippo.ehviewer.util.runAssertingNotMainThread
 import kotlinx.coroutines.CoroutineScope
@@ -218,6 +220,46 @@ object DownloadManager : OnSpiderListener, CoroutineScope {
 
             // Add it to history
             EhDB.putHistoryInfo(info)
+
+            addToFavoritesIfNeeded(info)
+        }
+    }
+
+    private fun addToFavoritesIfNeeded(info: DownloadInfo) {
+        launch {
+            runCatching {
+                val rawSlot = Settings.downloadFavSlot.value
+                val slot = when {
+                    rawSlot == GalleryInfo.NOT_FAVORITED -> return@runCatching
+                    rawSlot == GalleryInfo.LOCAL_FAVORITED -> GalleryInfo.LOCAL_FAVORITED
+                    rawSlot in 0..9 && Settings.hasSignedIn.value -> rawSlot
+                    rawSlot in 0..9 -> GalleryInfo.LOCAL_FAVORITED
+                    else -> return@runCatching
+                }
+                when (slot) {
+                    GalleryInfo.LOCAL_FAVORITED -> {
+                        if (!EhDB.containLocalFavorites(info.gid)) {
+                            EhDB.putLocalFavorites(info)
+                        }
+                        if (info.favoriteSlot == GalleryInfo.NOT_FAVORITED) {
+                            info.favoriteSlot = GalleryInfo.LOCAL_FAVORITED
+                            info.favoriteName = null
+                            info.favoriteNote = null
+                            FavouriteStatusRouter.notify(info)
+                        }
+                    }
+                    in 0..9 -> {
+                        if (info.favoriteSlot == slot) return@runCatching
+                        EhEngine.modifyFavorites(info.gid, info.token, slot)
+                        info.favoriteSlot = slot
+                        info.favoriteName = Settings.favCat[slot]
+                        info.favoriteNote = ""
+                        FavouriteStatusRouter.notify(info)
+                    }
+                }
+            }.onFailure {
+                logcat(it)
+            }
         }
     }
 

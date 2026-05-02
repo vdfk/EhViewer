@@ -55,7 +55,7 @@ android {
     val snapshot = !hasProperty("release")
 
     defaultConfig {
-        applicationId = "moe.tarsin.ehviewer"
+        applicationId = "com.vdfk.ehviewer"
         versionCode = 180063
         versionName = if (snapshot) {
             "1.15.0-SNAPSHOT"

@@ -41,6 +41,8 @@ import com.ehviewer.core.files.toUri
 import com.ehviewer.core.i18n.R
 import com.ehviewer.core.model.BaseGalleryInfo
 import com.ehviewer.core.model.GalleryInfo
+import com.ehviewer.core.model.GalleryInfo.Companion.LOCAL_FAVORITED
+import com.ehviewer.core.model.GalleryInfo.Companion.NOT_FAVORITED
 import com.ehviewer.core.util.isAtLeastQ
 import com.ehviewer.core.util.launch
 import com.ehviewer.core.util.launchIO
@@ -52,6 +54,7 @@ import com.hippo.ehviewer.client.EhEngine.fillGalleryListByApi
 import com.hippo.ehviewer.client.EhUrl
 import com.hippo.ehviewer.client.parser.GalleryDetailUrlParser
 import com.hippo.ehviewer.client.parser.ParserUtils
+import com.hippo.ehviewer.collectAsState
 import com.hippo.ehviewer.download.DownloadManager
 import com.hippo.ehviewer.download.downloadDir
 import com.hippo.ehviewer.download.downloadLocation
@@ -66,6 +69,7 @@ import com.hippo.ehviewer.ui.Screen
 import com.hippo.ehviewer.ui.keepNoMediaFileStatus
 import com.hippo.ehviewer.ui.main.NavigationIcon
 import com.hippo.ehviewer.ui.tools.awaitConfirmationOrCancel
+import com.hippo.ehviewer.ui.tools.awaitSelectItem
 import com.hippo.ehviewer.ui.tools.observed
 import com.hippo.ehviewer.util.AppConfig
 import com.hippo.ehviewer.util.displayPath
@@ -88,6 +92,7 @@ private const val URI_FLAGS = FLAG_GRANT_READ_URI_PERMISSION or FLAG_GRANT_WRITE
 fun AnimatedVisibilityScope.DownloadScreen(navigator: DestinationsNavigator) = Screen(navigator) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     fun launchSnackbar(message: String) = launch { snackbar(message) }
+    val hasSignedIn by Settings.hasSignedIn.collectAsState()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -175,6 +180,41 @@ fun AnimatedVisibilityScope.DownloadScreen(navigator: DestinationsNavigator) = S
                 summary = if (mediaScan.value) stringResource(id = R.string.settings_download_media_scan_summary_on) else stringResource(id = R.string.settings_download_media_scan_summary_off),
                 state = mediaScan,
             )
+            var downloadFavSlot by Settings.downloadFavSlot.asMutableState()
+            val disabled = stringResource(id = R.string.disabled_nav)
+            val localFav = stringResource(id = R.string.local_favorites)
+            val downloadFavSlotSummary = when {
+                downloadFavSlot == NOT_FAVORITED -> disabled
+                downloadFavSlot == LOCAL_FAVORITED -> localFav
+                downloadFavSlot in 0..9 && hasSignedIn -> Settings.favCat[downloadFavSlot]
+                downloadFavSlot in 0..9 -> localFav
+                else -> stringResource(id = R.string.default_favorites_warning)
+            }
+            Preference(
+                title = stringResource(id = R.string.settings_download_auto_favorite),
+                summary = downloadFavSlotSummary,
+            ) {
+                launch {
+                    val items = buildList {
+                        add(disabled)
+                        add(localFav)
+                        if (hasSignedIn) {
+                            addAll(Settings.favCat)
+                        }
+                    }
+                    val selected = when {
+                        !hasSignedIn && downloadFavSlot in 0..9 -> LOCAL_FAVORITED + 2
+                        downloadFavSlot in NOT_FAVORITED..LOCAL_FAVORITED -> downloadFavSlot + 2
+                        hasSignedIn && downloadFavSlot in 0..9 -> downloadFavSlot + 2
+                        else -> 0
+                    }
+                    downloadFavSlot = awaitSelectItem(
+                        items = items,
+                        title = R.string.settings_download_auto_favorite,
+                        selected = selected,
+                    ) - 2
+                }
+            }
             val multiThreadDownload = Settings.multiThreadDownload.asMutableState()
             SimpleMenuPreferenceInt(
                 title = stringResource(id = R.string.settings_download_concurrency),
