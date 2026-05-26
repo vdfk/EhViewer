@@ -426,6 +426,7 @@
     <string name="clear_search_history">清除裝置上的搜尋記錄</string>
     <string name="clear_search_history_summary">移除曾在此裝置上進行過的搜尋</string>
     <string name="clear_search_history_confirm">清除搜尋記錄？</string>
+    <string name="clear_search_history_button">清除搜尋記錄</string>
     <string name="search_history_cleared">已清除搜尋記錄</string>
     <string name="download_service">下載服務</string>
     <string name="favorite_name">收藏圖庫</string>

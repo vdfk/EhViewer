@@ -436,6 +436,7 @@
     <string name="clear_search_history">デバイスの検索履歴を消去</string>
     <string name="clear_search_history_summary">このデバイスから検索履歴を消去します</string>
     <string name="clear_search_history_confirm">検索履歴を消去しますか？</string>
+    <string name="clear_search_history_button">検索履歴を消去</string>
     <string name="search_history_cleared">検索履歴を消去しました</string>
     <string name="download_service">ダウンロードサービス</string>
     <string name="favorite_name">お気に入り</string>

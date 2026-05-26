@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -40,6 +39,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -77,6 +77,7 @@ import com.hippo.ehviewer.Settings
 import com.hippo.ehviewer.client.EhTagDatabase
 import com.hippo.ehviewer.collectAsState
 import com.hippo.ehviewer.ui.LocalNavDrawerState
+import com.hippo.ehviewer.ui.clearSearchHistory
 import com.hippo.ehviewer.ui.destinations.ImageSearchScreenDestination
 import com.hippo.ehviewer.ui.theme.scrim
 import com.hippo.ehviewer.ui.tools.DialogState
@@ -212,6 +213,13 @@ fun SearchBarScreen(
         }
     }
 
+    fun clearAllSearchHistory() {
+        scope.launch {
+            clearSearchHistory()
+            updateSuggestions()
+        }
+    }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = {
@@ -292,27 +300,48 @@ fun SearchBarScreen(
             ) {
                 // Workaround for prepending before the first item
                 item {}
-                items(mSuggestionList, key = { it.keyword.hashCode() * 31 + it.canDelete.hashCode() }) {
-                    ListItem(
-                        headlineContent = { Text(text = it.keyword) },
-                        supportingContent = it.hint.ifNotNullThen { Text(text = it.hint!!) },
-                        leadingContent = it.canOpenDirectly.ifTrueThen {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Default.MenuBook,
-                                contentDescription = null,
-                            )
-                        },
-                        trailingContent = it.canDelete.ifTrueThen {
-                            IconButton(onClick = { deleteKeyword(it.keyword) }, shapes = IconButtonDefaults.shapes()) {
+                val lastHistorySuggestionIndex = mSuggestionList.indexOfLast { it.canDelete }
+                mSuggestionList.forEachIndexed { index, suggestion ->
+                    item(key = suggestion.keyword.hashCode() * 31 + suggestion.canDelete.hashCode()) {
+                        ListItem(
+                            headlineContent = { Text(text = suggestion.keyword) },
+                            supportingContent = suggestion.hint.ifNotNullThen { Text(text = suggestion.hint!!) },
+                            leadingContent = suggestion.canOpenDirectly.ifTrueThen {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
+                                    imageVector = Icons.AutoMirrored.Default.MenuBook,
                                     contentDescription = null,
                                 )
+                            },
+                            trailingContent = suggestion.canDelete.ifTrueThen {
+                                IconButton(onClick = { deleteKeyword(suggestion.keyword) }, shapes = IconButtonDefaults.shapes()) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = null,
+                                    )
+                                }
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable { suggestion.onClick() }.thenIf(animateItems) { animateItem() },
+                        )
+                    }
+                    if (index == lastHistorySuggestionIndex) {
+                        item(key = SearchHistoryClearItemKey) {
+                            Column(modifier = Modifier.thenIf(animateItems) { animateItem() }) {
+                                HorizontalDivider()
+                                Box(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .height(SearchHistoryClearItemHeight)
+                                        .clickable { clearAllSearchHistory() },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = stringResource(id = R.string.clear_search_history_button),
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
                             }
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { it.onClick() }.thenIf(animateItems) { animateItem() },
-                    )
+                        }
+                    }
                 }
             }
         }
@@ -336,5 +365,7 @@ fun wrapTagKeyword(keyword: String, translate: Boolean = false): String = run {
 
 private val TagTerminators = charArrayOf('"', '$')
 private val WhitespaceRegex = Regex("\\s+")
+private val SearchHistoryClearItemKey = "search-history-clear"
+private val SearchHistoryClearItemHeight = 56.dp
 private val SearchBarHorizontalPadding = 16.dp
 private val M3SearchBarMaxWidth = 720.dp

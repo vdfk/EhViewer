@@ -461,6 +461,7 @@
     <string name="clear_search_history">Clear device search history</string>
     <string name="clear_search_history_summary">Remove searches you have performed from this device</string>
     <string name="clear_search_history_confirm">Clear search history?</string>
+    <string name="clear_search_history_button">Clear search history</string>
     <string name="search_history_cleared">Search history cleared</string>
     <string name="download_service">Download Service</string>
     <string name="favorite_name">Favorite</string>
