@@ -129,7 +129,7 @@ class SpiderDen(val info: GalleryInfo) {
             containInCache(index) || containInDownloadDir(index)
         }
         SpiderQueen.MODE_DOWNLOAD -> {
-            containInDownloadDir(index) || copyFromCacheToDownloadDir(index)
+            containInDownloadDir(index) || (!Settings.skipCopyImageForDownloadOrigin && copyFromCacheToDownloadDir(index))
         }
         else -> {
             false

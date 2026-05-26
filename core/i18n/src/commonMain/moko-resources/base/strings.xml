@@ -350,6 +350,11 @@
     <string name="settings_download_preload_image_summary">Preload next %s image</string>
     <string name="settings_download_download_origin_image">Download original image</string>
     <string name="settings_download_download_origin_image_summary">Caution! May require GP</string>
+    <string name="settings_download_download_origin_image_off">Off</string>
+    <string name="settings_download_download_origin_image_always">Always enabled</string>
+    <string name="settings_download_download_origin_image_download_only">Download only</string>
+    <string name="settings_download_download_origin_image_summary_always">Always enabled (may consume more GP)</string>
+    <string name="settings_download_download_origin_image_summary_download_only">Download only (may require GP)</string>
     <string name="settings_download_save_as_cbz">Save as CBZ archive</string>
     <string name="settings_download_archive_metadata">Archive metadata</string>
     <string name="settings_download_archive_metadata_summary">Generate ComicInfo.xml on archive download</string>

@@ -98,7 +98,7 @@ object Settings : DataStorePreferences(null) {
     val downloadDelay = intPref("download_delay_3", 1000)
     val timeoutSpeed = intPref("timeout_speed_level", 6)
     val preloadImage = intPref("preload_image_2", 5)
-    val downloadOriginImage = boolPref("download_origin_image", false)
+    val downloadOriginImage = intPref("download_origin_image", DOWNLOAD_ORIGIN_IMAGE_OFF)
     val saveAsCbz = boolPref("save_as_cbz", false)
     val archiveMetadata = boolPref("archive_metadata", true)
     val downloadFavSlot = intPref("download_favorite_slot", NOT_FAVORITED)
@@ -152,6 +152,15 @@ object Settings : DataStorePreferences(null) {
     var recentToplist by stringPref("recent_toplist", "11")
     var defaultDownloadLabel by stringOrNullPref("default_download_label")
     var lastUpdateTime by longPref("last_update_time", BuildConfig.COMMIT_TIME)
+
+    fun shouldDownloadOriginImage(isDownloadMode: Boolean): Boolean = when (downloadOriginImage.value) {
+        DOWNLOAD_ORIGIN_IMAGE_ALWAYS -> true
+        DOWNLOAD_ORIGIN_IMAGE_DOWNLOAD_ONLY -> isDownloadMode
+        else -> false
+    }
+
+    val skipCopyImageForDownloadOrigin: Boolean
+        get() = downloadOriginImage.value == DOWNLOAD_ORIGIN_IMAGE_DOWNLOAD_ONLY
 
     // Reader
     val cropBorder = boolPref("crop_borders", false)
@@ -228,4 +237,8 @@ object Settings : DataStorePreferences(null) {
             edit { pref -> value.zip(delegates) { v, d -> pref[d] = v } }
         }
     }
+
+    const val DOWNLOAD_ORIGIN_IMAGE_OFF = 0
+    const val DOWNLOAD_ORIGIN_IMAGE_ALWAYS = 1
+    const val DOWNLOAD_ORIGIN_IMAGE_DOWNLOAD_ONLY = 2
 }

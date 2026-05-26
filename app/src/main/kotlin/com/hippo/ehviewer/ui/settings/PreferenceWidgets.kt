@@ -111,7 +111,7 @@ fun SimpleMenuPreferenceInt(title: String, summary: String? = null, @ArrayRes en
     val entryArray = stringArrayResource(id = entry)
     val valuesArray = integerArrayResource(id = entryValueRes)
     check(entryArray.size == valuesArray.size)
-    val map = remember {
+    val map = remember(entryArray, valuesArray) {
         val iter = entryArray.iterator()
         valuesArray.associateWith { iter.next() }
     }

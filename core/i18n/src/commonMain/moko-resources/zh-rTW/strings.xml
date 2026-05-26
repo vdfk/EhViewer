@@ -320,6 +320,11 @@
     <string name="settings_download_preload_image_summary">向後預載 %s 張圖片</string>
     <string name="settings_download_download_origin_image">下載原圖</string>
     <string name="settings_download_download_origin_image_summary">這很危險！勾選這個選項會導致圖片流量配額快速耗用</string>
+    <string name="settings_download_download_origin_image_off">關閉</string>
+    <string name="settings_download_download_origin_image_always">總是啟用</string>
+    <string name="settings_download_download_origin_image_download_only">僅下載時啟用</string>
+    <string name="settings_download_download_origin_image_summary_always">總是啟用（可能消耗更多 GP）</string>
+    <string name="settings_download_download_origin_image_summary_download_only">僅下載時啟用（可能需要 GP）</string>
     <string name="settings_download_save_as_cbz">儲存為 CBZ 壓縮檔</string>
     <string name="settings_download_archive_metadata">壓縮檔中繼資料</string>
     <string name="settings_download_archive_metadata_summary">下載壓縮檔時產生 ComicInfo.xml</string>

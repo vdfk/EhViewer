@@ -246,10 +246,22 @@ fun AnimatedVisibilityScope.DownloadScreen(navigator: DestinationsNavigator) = S
                 entryValueRes = com.hippo.ehviewer.R.array.preload_image_entry_values,
                 state = preloadImage,
             )
-            SwitchPreference(
+            val downloadOriginImage = Settings.downloadOriginImage.asMutableState()
+            val downloadOriginImageSummary = when (downloadOriginImage.value) {
+                Settings.DOWNLOAD_ORIGIN_IMAGE_ALWAYS -> {
+                    stringResource(id = R.string.settings_download_download_origin_image_summary_always)
+                }
+                Settings.DOWNLOAD_ORIGIN_IMAGE_DOWNLOAD_ONLY -> {
+                    stringResource(id = R.string.settings_download_download_origin_image_summary_download_only)
+                }
+                else -> stringResource(id = R.string.settings_download_download_origin_image_off)
+            }
+            SimpleMenuPreferenceInt(
                 title = stringResource(id = R.string.settings_download_download_origin_image),
-                summary = stringResource(id = R.string.settings_download_download_origin_image_summary),
-                state = Settings.downloadOriginImage.asMutableState(),
+                summary = downloadOriginImageSummary,
+                entry = com.hippo.ehviewer.R.array.download_origin_image_entries,
+                entryValueRes = com.hippo.ehviewer.R.array.download_origin_image_entry_values,
+                state = downloadOriginImage,
             )
             SwitchPreference(
                 title = stringResource(id = R.string.settings_download_save_as_cbz),

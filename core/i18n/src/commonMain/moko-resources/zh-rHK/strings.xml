@@ -323,6 +323,11 @@
     <string name="settings_download_preload_image_summary">向後預載 %s 張圖片</string>
     <string name="settings_download_download_origin_image">下載原圖</string>
     <string name="settings_download_download_origin_image_summary">這很危險！勾選此項會導致下載配額迅速流失</string>
+    <string name="settings_download_download_origin_image_off">關閉</string>
+    <string name="settings_download_download_origin_image_always">總是啟用</string>
+    <string name="settings_download_download_origin_image_download_only">僅下載時啟用</string>
+    <string name="settings_download_download_origin_image_summary_always">總是啟用（可能消耗更多 GP）</string>
+    <string name="settings_download_download_origin_image_summary_download_only">僅下載時啟用（可能需要 GP）</string>
     <string name="settings_download_media_scan">允許媒體掃描</string>
     <string name="settings_download_media_scan_summary_on">請避免他人翻看你的圖庫應用</string>
     <string name="settings_download_media_scan_summary_off">大多數圖庫應用將不會顯示下載目錄中的圖片</string>
