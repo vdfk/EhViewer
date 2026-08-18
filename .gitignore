@@ -1,5 +1,6 @@
 .gradle
 /local.properties
+/app/keystore
 .DS_Store
 build
 .cxx
@@ -7,4 +8,4 @@ build
 *.iml
 .idea
 .vscode
-/captures
+.tmp

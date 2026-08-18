@@ -14,13 +14,12 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import com.ehviewer.core.i18n.R
 import com.ehviewer.core.util.launch
-import com.hippo.ehviewer.EhApplication.Companion.searchDatabase
 import com.hippo.ehviewer.Settings
 import com.hippo.ehviewer.asMutableState
 import com.hippo.ehviewer.ui.Screen
+import com.hippo.ehviewer.ui.clearSearchHistory
 import com.hippo.ehviewer.ui.isAuthenticationSupported
 import com.hippo.ehviewer.ui.main.NavigationIcon
-import com.hippo.ehviewer.ui.tools.awaitConfirmationOrCancel
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootGraph
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
@@ -73,11 +72,7 @@ fun AnimatedVisibilityScope.PrivacyScreen(navigator: DestinationsNavigator) = Sc
                 summary = stringResource(id = R.string.clear_search_history_summary),
             ) {
                 launch {
-                    awaitConfirmationOrCancel(
-                        confirmText = R.string.clear_all,
-                        title = R.string.clear_search_history_confirm,
-                    )
-                    searchDatabase.searchDao().clear()
+                    clearSearchHistory()
                     launchSnackbar(searchHistoryCleared)
                 }
             }

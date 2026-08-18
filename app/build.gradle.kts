@@ -1,9 +1,26 @@
 import com.mikepenz.aboutlibraries.plugin.DuplicateMode
 import com.mikepenz.aboutlibraries.plugin.DuplicateRule
+import java.util.Properties
 import java.util.regex.Pattern
 
 val isRelease: Boolean
     get() = gradle.startParameter.taskNames.any { it.contains("Release") }
+
+val keystorePropertiesFile = layout.projectDirectory.file("keystore/keystore.properties").asFile
+check(keystorePropertiesFile.isFile) {
+    "Signing properties file not found: ${keystorePropertiesFile.path}"
+}
+val keystoreProperties = Properties().apply {
+    keystorePropertiesFile.inputStream().use(::load)
+}
+
+fun requiredKeystoreProperty(name: String): String =
+    keystoreProperties.getProperty(name)?.takeIf(String::isNotBlank)
+        ?: error("Missing '$name' in ${keystorePropertiesFile.path}")
+
+val keystoreFile = keystoreProperties.getProperty("storeFile")?.let { path ->
+    layout.projectDirectory.file(path).asFile
+} ?: layout.projectDirectory.file("keystore/androidkey.jks").asFile
 
 plugins {
     alias(libs.plugins.ehviewer.android.application)
@@ -31,10 +48,10 @@ android {
     }
 
     val signConfig = signingConfigs.create("release") {
-        storeFile = File(projectDir.path + "/keystore/androidkey.jks")
-        storePassword = "000000"
-        keyAlias = "key0"
-        keyPassword = "000000"
+        storeFile = keystoreFile
+        storePassword = requiredKeystoreProperty("storePassword")
+        keyAlias = requiredKeystoreProperty("keyAlias")
+        keyPassword = requiredKeystoreProperty("keyPassword")
         enableV3Signing = true
         enableV4Signing = true
     }

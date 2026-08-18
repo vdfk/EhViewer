@@ -52,6 +52,7 @@ import com.ehviewer.core.util.toEpochMillis
 import com.ehviewer.core.util.toLocalDateTime
 import com.ehviewer.core.util.withIOContext
 import com.hippo.ehviewer.EhDB
+import com.hippo.ehviewer.EhApplication.Companion.searchDatabase
 import com.hippo.ehviewer.Settings
 import com.hippo.ehviewer.client.EhEngine
 import com.hippo.ehviewer.client.EhUtils
@@ -110,6 +111,15 @@ suspend fun keepNoMediaFileStatus(downloadDir: Path = downloadLocation, mediaSca
             }
         }
     }
+}
+
+context(_: DialogState)
+suspend fun clearSearchHistory() {
+    awaitConfirmationOrCancel(
+        confirmText = R.string.clear_all,
+        title = R.string.clear_search_history_confirm,
+    )
+    searchDatabase.searchDao().clear()
 }
 
 fun getFavoriteIcon(favorited: Boolean) = if (favorited) Icons.Default.Favorite else Icons.Default.FavoriteBorder
