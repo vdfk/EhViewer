@@ -9,6 +9,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import com.ehviewer.core.model.GalleryInfo.Companion.NOT_FAVORITED
 import com.ehviewer.core.network.EhCookieStore
 import com.ehviewer.core.preferences.DataStorePreferences
 import com.ehviewer.core.preferences.PrefDelegate
@@ -100,6 +101,7 @@ object Settings : DataStorePreferences(null) {
     val downloadOriginImage = boolPref("download_origin_image", false)
     val saveAsCbz = boolPref("save_as_cbz", false)
     val archiveMetadata = boolPref("archive_metadata", true)
+    val downloadFavSlot = intPref("download_favorite_slot", NOT_FAVORITED)
 
     // Privacy
     val security = boolPref("require_unlock", false)

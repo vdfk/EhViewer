@@ -44,6 +44,7 @@ import com.ehviewer.core.util.logcat
 import com.ehviewer.core.util.mapNotNull
 import com.hippo.ehviewer.EhDB
 import com.hippo.ehviewer.Settings
+import com.hippo.ehviewer.client.EhEngine
 import com.hippo.ehviewer.client.exception.FatalException
 import com.hippo.ehviewer.spider.COMIC_INFO_FILE
 import com.hippo.ehviewer.spider.SpeedTracker
@@ -55,11 +56,13 @@ import com.hippo.ehviewer.spider.readComicInfo
 import com.hippo.ehviewer.spider.readCompatFromPath
 import com.hippo.ehviewer.spider.toSimpleTags
 import com.hippo.ehviewer.util.AppConfig
+import com.hippo.ehviewer.util.FavouriteStatusRouter
 import com.hippo.ehviewer.util.insertWith
 import com.hippo.ehviewer.util.runAssertingNotMainThread
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.transform
@@ -67,11 +70,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import logcat.LogPriority
+import moe.tarsin.coroutines.runSuspendCatching
 import okio.Path
 import okio.Path.Companion.toOkioPath
 import okio.Path.Companion.toPath
 
 object DownloadManager : OnSpiderListener, CoroutineScope {
+    private const val AUTO_FAVORITE_REQUEST_INTERVAL = 1000L
+
     override val coroutineContext = Dispatchers.IO + Job()
 
     // All download info list
@@ -101,6 +107,7 @@ object DownloadManager : OnSpiderListener, CoroutineScope {
     private val mutex = Mutex()
 
     private val sortMutex = Mutex()
+    private val autoFavoriteMutex = Mutex()
     private val sortMode
         get() = SortMode.from(Settings.downloadSortMode.value)
 
@@ -218,6 +225,54 @@ object DownloadManager : OnSpiderListener, CoroutineScope {
 
             // Add it to history
             EhDB.putHistoryInfo(info)
+
+            addToFavoritesIfNeeded(info)
+        }
+    }
+
+    private fun addToFavoritesIfNeeded(info: DownloadInfo) {
+        launch {
+            runSuspendCatching {
+                val configuredSlot = Settings.downloadFavSlot.value
+                val slot = when {
+                    configuredSlot == GalleryInfo.NOT_FAVORITED -> return@runSuspendCatching
+                    configuredSlot == GalleryInfo.LOCAL_FAVORITED -> GalleryInfo.LOCAL_FAVORITED
+                    !Settings.hasSignedIn.value -> GalleryInfo.LOCAL_FAVORITED
+                    else -> configuredSlot.also { check(it in 0..9) }
+                }
+                when (slot) {
+                    GalleryInfo.LOCAL_FAVORITED -> {
+                        if (!EhDB.containLocalFavorites(info.gid)) {
+                            EhDB.putLocalFavorites(info)
+                        }
+                        if (info.favoriteSlot == GalleryInfo.NOT_FAVORITED) {
+                            info.favoriteSlot = GalleryInfo.LOCAL_FAVORITED
+                            info.favoriteName = null
+                            info.favoriteNote = null
+                            FavouriteStatusRouter.notify(info)
+                        }
+                    }
+                    in 0..9 -> autoFavoriteMutex.withLock {
+                        if (info.favoriteSlot == slot) return@withLock
+                        try {
+                            val note = if (info.favoriteSlot in 0..9) {
+                                info.favoriteNote ?: EhEngine.getFavoriteNote(info.gid, info.token)
+                            } else {
+                                ""
+                            }
+                            EhEngine.modifyFavorites(info.gid, info.token, slot, note)
+                            info.favoriteSlot = slot
+                            info.favoriteName = Settings.favCat[slot]
+                            info.favoriteNote = note
+                            FavouriteStatusRouter.notify(info)
+                        } finally {
+                            delay(AUTO_FAVORITE_REQUEST_INTERVAL)
+                        }
+                    }
+                }
+            }.onFailure {
+                logcat(it)
+            }
         }
     }
 
