@@ -412,6 +412,18 @@ class SpiderQueen private constructor(val galleryInfo: GalleryInfo) : CoroutineS
         }
     }
 
+    private fun updatePageStateOnFailure(index: Int, error: String?) {
+        val canUseCachedImage = spiderDen.mode == MODE_READ &&
+            spiderDen.hasDownloadDir &&
+            !spiderDen.containsInDownloadDir(index) &&
+            spiderDen.containsCachedImage(index)
+        if (canUseCachedImage) {
+            updatePageState(index, STATE_FINISHED)
+        } else {
+            updatePageState(index, STATE_FAILED, error)
+        }
+    }
+
     @IntDef(MODE_READ, MODE_DOWNLOAD)
     @Retention
     annotation class Mode
@@ -509,12 +521,12 @@ class SpiderQueen private constructor(val galleryInfo: GalleryInfo) : CoroutineS
                             if (mReadReference > 0) {
                                 logcat(WORKER_DEBUG_TAG) { "Download image $index cancelled" }
                                 if (it.message != FORCE_RETRY) {
-                                    updatePageState(index, STATE_FAILED, "Cancelled")
+                                    updatePageStateOnFailure(index, "Cancelled")
                                 }
                             }
                             throw it
                         }
-                        updatePageState(index, STATE_FAILED, it.displayString())
+                        updatePageStateOnFailure(index, it.displayString())
                     }
                 }
             }
@@ -544,11 +556,22 @@ class SpiderQueen private constructor(val galleryInfo: GalleryInfo) : CoroutineS
             }
             val previousPToken: String?
             val pToken: String
+            val repairDownloadedFile = spiderDen.mode == MODE_READ &&
+                spiderDen.hasDownloadDir &&
+                !spiderDen.containsInDownloadDir(index)
+            val original = orgImg || Settings.shouldDownloadOriginImage(
+                spiderDen.mode == MODE_DOWNLOAD || repairDownloadedFile,
+            )
             pTokenLock.withLock {
-                if (!force && index in spiderDen) {
+                if (!force && repairDownloadedFile && original &&
+                    spiderDen.copyCachedImageToDownloadDir(index, requireOriginal = true)
+                ) {
                     return updatePageState(index, STATE_FINISHED)
                 }
-                pToken = getPToken(index) ?: return updatePageState(index, STATE_FAILED, pTokenFailedMessage)
+                if (!force && spiderDen.contains(index, requireOriginal = original)) {
+                    return updatePageState(index, STATE_FINISHED)
+                }
+                pToken = getPToken(index) ?: return updatePageStateOnFailure(index, pTokenFailedMessage)
                 previousPToken = getPToken(index - 1)
 
                 // The lock for delay should be acquired before anything else to maintain FIFO order
@@ -561,7 +584,6 @@ class SpiderQueen private constructor(val galleryInfo: GalleryInfo) : CoroutineS
             var originImageUrl: String? = null
             var error: String? = null
             var forceHtml = false
-            val original = Settings.downloadOriginImage.value || orgImg
             runSuspendCatching {
                 repeat(3) { retries ->
                     var imageUrl: String? = null
@@ -610,7 +632,8 @@ class SpiderQueen private constructor(val galleryInfo: GalleryInfo) : CoroutineS
                         return@repeat
                     }
 
-                    val (targetImageUrl, referer) = if (original && originImageUrl != null) {
+                    val isOriginal = original && originImageUrl != null
+                    val (targetImageUrl, referer) = if (isOriginal) {
                         if (retries == 1 && skipHathKey != null) {
                             originImageUrl += "?nl=$skipHathKey"
                         }
@@ -629,13 +652,21 @@ class SpiderQueen private constructor(val galleryInfo: GalleryInfo) : CoroutineS
                             index,
                             targetImageUrl,
                             referer,
+                            isOriginal,
                             this@SpiderQueen::notifyPageDownload.partially1(index),
                         )
+                        if (spiderDen.hasDownloadDir) {
+                            spiderDen.removeCachedImage(index)
+                        }
                         logcat(WORKER_DEBUG_TAG) { "Download image $index succeed" }
                         updatePageState(index, STATE_FINISHED)
                         return
                     }.onFailure {
-                        spiderDen.removeIntermediateFiles(index)
+                        if (repairDownloadedFile && original) {
+                            spiderDen.removeDownloadTempFile(index)
+                        } else {
+                            spiderDen.removeIntermediateFiles(index)
+                        }
                         logcat(WORKER_DEBUG_TAG) { "Download image $index failed" }
                         when (it) {
                             is CancellationException, is FileNotFoundException -> throw it
@@ -652,7 +683,7 @@ class SpiderQueen private constructor(val galleryInfo: GalleryInfo) : CoroutineS
                     }
                 }
             }
-            updatePageState(index, STATE_FAILED, error)
+            updatePageStateOnFailure(index, error)
         }
     }
     private val pTokenFailedMessage = appCtx.getString(R.string.error_get_ptoken_error)

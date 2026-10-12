@@ -16,9 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.integerArrayResource
-import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import com.ehviewer.core.ui.component.RollingNumber
@@ -108,10 +108,12 @@ fun HtmlPreference(title: String, summary: AnnotatedString? = null, onClick: () 
 
 @Composable
 fun SimpleMenuPreferenceInt(title: String, summary: String? = null, @ArrayRes entry: Int, @ArrayRes entryValueRes: Int, state: MutableState<Int>) {
-    val entryArray = stringArrayResource(id = entry)
-    val valuesArray = integerArrayResource(id = entryValueRes)
-    check(entryArray.size == valuesArray.size)
-    val map = remember {
+    val resources = LocalResources.current
+    val configuration = LocalConfiguration.current
+    val map = remember(entry, entryValueRes, configuration) {
+        val entryArray = resources.getStringArray(entry)
+        val valuesArray = resources.getIntArray(entryValueRes)
+        check(entryArray.size == valuesArray.size)
         val iter = entryArray.iterator()
         valuesArray.associateWith { iter.next() }
     }

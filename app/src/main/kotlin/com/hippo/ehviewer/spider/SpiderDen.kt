@@ -56,6 +56,10 @@ import io.ktor.client.statement.request
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import okio.Path
 import okio.Path.Companion.toOkioPath
 import splitties.init.appCtx
@@ -79,6 +83,9 @@ class SpiderDen(val info: GalleryInfo) {
     private val imageDir
         get() = tempDownloadDir.takeIf { saveAsCbz } ?: downloadDir
 
+    val hasDownloadDir: Boolean
+        get() = downloadDir != null
+
     constructor(info: GalleryInfo, dirname: String) : this(info) {
         downloadDir = downloadLocation / dirname
     }
@@ -100,38 +107,51 @@ class SpiderDen(val info: GalleryInfo) {
         }
     }
 
-    private fun containInCache(index: Int): Boolean {
+    private fun containsInCache(index: Int, requireOriginal: Boolean): Boolean {
         val key = getImageKey(gid, index)
-        return sCache.read(key) {} != null
+        return runCatching {
+            sCache.read(key) {
+                val cacheMetadata = metadata.readImageCacheMetadata()
+                !requireOriginal || cacheMetadata.type == ImageCacheType.ORIGINAL
+            } == true
+        }.onFailure {
+            logcat(it)
+        }.getOrDefault(false)
     }
+
+    fun containsCachedImage(index: Int): Boolean = containsInCache(index, requireOriginal = false)
 
     private fun findImageFile(index: Int, temp: Boolean = false) = lock.read {
         val head = perFilename(index)
         fileCache.entries.firstOrNull { (name) -> name.startsWith(head) && temp == name.endsWith(TEMP_SUFFIX) }?.value
     }
 
-    private fun containInDownloadDir(index: Int): Boolean = findImageFile(index) != null
+    fun containsInDownloadDir(index: Int): Boolean = findImageFile(index) != null
 
-    private fun copyFromCacheToDownloadDir(index: Int): Boolean {
+    fun copyCachedImageToDownloadDir(index: Int, requireOriginal: Boolean): Boolean {
         val dir = imageDir ?: return false
         val key = getImageKey(gid, index)
         return runCatching {
             sCache.read(key) {
-                val extension = metadata.toFile().readText()
-                val file = dir.findDownloadFileForIndex(index, extension)
+                val cacheMetadata = metadata.readImageCacheMetadata()
+                if (requireOriginal && cacheMetadata.type != ImageCacheType.ORIGINAL) return@read false
+                val file = dir.findDownloadFileForIndex(index, cacheMetadata.extension)
                 data sendTo file
-            } != null
+                true
+            } == true
         }.onFailure {
             logcat(it)
         }.getOrDefault(false)
     }
 
-    operator fun contains(index: Int): Boolean = when (mode) {
+    fun contains(index: Int, requireOriginal: Boolean): Boolean = when (mode) {
         SpiderQueen.MODE_READ -> {
-            containInCache(index) || containInDownloadDir(index)
+            containsInCache(index, requireOriginal) || containsInDownloadDir(index).also { found ->
+                if (found && requireOriginal) removeCachedImage(index)
+            }
         }
         SpiderQueen.MODE_DOWNLOAD -> {
-            containInDownloadDir(index) || copyFromCacheToDownloadDir(index)
+            containsInDownloadDir(index) || copyCachedImageToDownloadDir(index, requireOriginal)
         }
         else -> {
             false
@@ -153,6 +173,14 @@ class SpiderDen(val info: GalleryInfo) {
         removeTempFile(index)
     }
 
+    fun removeDownloadTempFile(index: Int) {
+        removeTempFile(index)
+    }
+
+    fun removeCachedImage(index: Int) {
+        runCatching { removeFromCache(index) }.onFailure { logcat(it) }
+    }
+
     fun clearCache() {
         repeat(info.pages, ::removeFromCache)
     }
@@ -166,17 +194,19 @@ class SpiderDen(val info: GalleryInfo) {
         index: Int,
         url: String,
         referer: String?,
+        isOriginal: Boolean,
         notifyProgress: (Long, Long, Int) -> Unit,
     ) = timeoutBySpeed(
         url,
         { ehRequest(url, referer, builder = it) },
         notifyProgress,
-        { resp -> check(saveFromHttpResponse(index, resp)) },
+        { resp -> check(saveFromHttpResponse(index, resp, isOriginal)) },
     )
 
     private suspend inline fun saveResponseMeta(
         index: Int,
         ext: String,
+        isOriginal: Boolean,
         crossinline fops: suspend (Path) -> Unit,
     ): Boolean {
         imageDir?.run {
@@ -197,17 +227,22 @@ class SpiderDen(val info: GalleryInfo) {
         if (mode == SpiderQueen.MODE_READ) {
             val key = getImageKey(gid, index)
             return sCache.suspendEdit(key) {
-                metadata.toFile().writeText(ext)
+                metadata.writeImageCacheMetadata(
+                    ImageCacheMetadata(
+                        extension = ext,
+                        type = if (isOriginal) ImageCacheType.ORIGINAL else ImageCacheType.NORMAL,
+                    ),
+                )
                 fops(data)
             }
         }
         return false
     }
 
-    private suspend fun saveFromHttpResponse(index: Int, response: HttpResponse): Boolean {
+    private suspend fun saveFromHttpResponse(index: Int, response: HttpResponse, isOriginal: Boolean): Boolean {
         val url = response.request.url.toString()
         val extension = MimeTypeMap.getFileExtensionFromUrl(url).ifEmpty { "jpg" }
-        return saveResponseMeta(index, extension) { outFile ->
+        return saveResponseMeta(index, extension, isOriginal) { outFile ->
             response.bodyAsChannel().copyTo(outFile)
             FileHashRegex.find(url)?.let {
                 val expected = it.groupValues[1]
@@ -245,7 +280,7 @@ class SpiderDen(val info: GalleryInfo) {
 
     fun getExtension(index: Int): String? {
         val key = getImageKey(gid, index)
-        return sCache.read(key) { metadata.toFile().readText() }
+        return sCache.read(key) { metadata.readImageCacheMetadata().extension }
             ?: findImageFile(index)?.name.let { FileUtils.getExtensionFromFilename(it) }
     }
 
@@ -257,7 +292,7 @@ class SpiderDen(val info: GalleryInfo) {
                 return object : PathSource, AutoCloseable by snapshot {
                     override val source = snapshot.data
                     override val type by lazy {
-                        snapshot.metadata.toFile().readText()
+                        snapshot.metadata.readImageCacheMetadata().extension
                     }
                 }
             }
@@ -346,6 +381,25 @@ class SpiderDen(val info: GalleryInfo) {
             }
         }
     }
+}
+
+@Serializable
+private data class ImageCacheMetadata(
+    val extension: String,
+    val type: ImageCacheType,
+)
+
+@Serializable
+private enum class ImageCacheType {
+    NORMAL,
+    ORIGINAL,
+}
+
+private fun Path.readImageCacheMetadata(): ImageCacheMetadata =
+    Json.decodeFromString(toFile().readText())
+
+private fun Path.writeImageCacheMetadata(metadata: ImageCacheMetadata) {
+    toFile().writeText(Json.encodeToString(metadata))
 }
 
 private val sCache by lazy {
